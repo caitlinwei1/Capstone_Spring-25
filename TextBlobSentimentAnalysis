@@ -1,0 +1,30 @@
+## Define Functions for Subjectivity and Polarity Analysis (Sentiment)
+
+from textblob import TextBlob
+
+# -- Subjectivity Analysis Functions --
+def analyze_subjectivity(text):
+    """Return the subjectivity score using TextBlob (0 to 1)."""
+    if isinstance(text, str):
+        return TextBlob(text).sentiment.subjectivity
+    return 0
+
+def subjectivity_category(subjectivity, threshold=0.5):
+    """Classify text as 'Subjective' if subjectivity is above the threshold; otherwise 'Objective'."""
+    return "Subjective" if subjectivity >= threshold else "Objective"
+
+# -- Polarity (Sentiment) Analysis Functions --
+def analyze_sentiment(text):
+    """Return the sentiment polarity using TextBlob (-1 to 1)."""
+    if isinstance(text, str):
+        return TextBlob(text).sentiment.polarity
+    return 0
+
+def sentiment_category(polarity, pos_threshold=0.1, neg_threshold=-0.1):
+    """Categorize sentiment as Positive, Negative, or Neutral based on polarity score."""
+    if polarity > pos_threshold:
+        return "Positive"
+    elif polarity < neg_threshold:
+        return "Negative"
+    else:
+        return "Neutral"

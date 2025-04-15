@@ -1,0 +1,150 @@
+### REGRESSION WITHOUT REFERRENT 
+# %% Regression Data Preparation
+# Define a helper function to compute the proper/common noun ratio for each text.
+def compute_ratio_for_row(text):
+    counts = extract_nouns_by_type(text, nlp)
+    return counts["proper"] / counts["common"] if counts["common"] > 0 else 0
+
+# Compute the ratio for each observation.
+fed_sample_swing["ratio"] = fed_sample_swing[TEXT_COLUMN].apply(compute_ratio_for_row)
+
+# For convenience in the regression, rename columns to simpler names.
+df_reg = fed_sample_swing.rename(columns={
+    "actor_attributes.Registered Political Party": "party",
+    "actor_attributes.Gender": "gender",
+    "actor_attributes.Race": "race",
+    "attributes.search_data_fields.platform_name": "platform",
+    "actor_attributes.Body Name": "body",
+    "actor_attributes.State": "state",
+    TEXT_COLUMN: "text"
+})
+
+
+# Optionally, inspect the first few rows of the regression dataframe.
+df_reg[['party', 'gender', 'race', 'platform', 'body', 'state', 'ratio']].head()
+
+# %% Block: Convert Predictor Columns to Categorical
+# List the predictor columns that are categorical.
+predictor_cols = ["party", "gender", "race", "platform", "body", "state"]
+
+# Convert these columns to categorical dtype.
+for col in predictor_cols:
+    df_reg[col] = df_reg[col].astype("category")
+    
+# Optionally, inspect the data types to confirm.
+print(df_reg[predictor_cols].dtypes)
+
+
+# %% Block: Regression Analysis (After Converting Data Types)
+
+# %% Filter Regression Data for Selected Parties
+# Restrict df_reg to only rows where party is "Democratic Party" or "Republican Party"
+df_reg = df_reg[df_reg['party'].isin(['Democratic Party', 'Republican Party'])]
+
+# Optionally, verify the filtering:
+print(df_reg['party'].value_counts())
+
+import statsmodels.formula.api as smf
+
+# Build the regression model. C() ensures that predictors are treated as categorical.
+formula = "ratio ~ C(party) + C(gender) + C(race) + C(platform) + C(body) + C(state)"
+model = smf.ols(formula, data=df_reg).fit()
+
+# Print the regression summary.
+print(model.summary())
+
+
+# %% Coefficient Plot: Visualizing Regression Coefficients with Confidence Intervals
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# Extract coefficients and their 95% confidence intervals from the model.
+coef_df = pd.DataFrame({
+    "coef": model.params,
+    "lower": model.conf_int()[0],
+    "upper": model.conf_int()[1]
+})
+
+# Optionally, remove the Intercept if you want to focus on the predictors.
+coef_df = coef_df.drop("Intercept", errors="ignore")
+# Sort coefficients for a cleaner display.
+coef_df = coef_df.sort_values(by="coef")
+
+plt.figure(figsize=(8, 6))
+plt.errorbar(coef_df["coef"], coef_df.index, 
+             xerr=[coef_df["coef"] - coef_df["lower"], coef_df["upper"] - coef_df["coef"]],
+             fmt='o', color='blue', ecolor='gray', capsize=4)
+plt.axvline(0, color='red', linestyle='--')
+plt.xlabel("Coefficient Estimate")
+plt.title("Regression Coefficient Plot")
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+### REGRESSION WITH REFERRENTS
+# %% Set Reference Categories Based on Mode
+# Compute the mode for each predictor variable
+ref_party = df_reg['party'].mode()[0]
+ref_gender = df_reg['gender'].mode()[0]
+ref_race = df_reg['race'].mode()[0]
+ref_platform = df_reg['platform'].mode()[0]
+ref_body = df_reg['body'].mode()[0]
+ref_state = df_reg['state'].mode()[0]
+
+print("Reference Categories:")
+print("Party:", ref_party)
+print("Gender:", ref_gender)
+print("Race:", ref_race)
+print("Platform:", ref_platform)
+print("Body:", ref_body)
+print("State:", ref_state)
+
+
+# %% Regression Analysis with Custom Reference Categories
+import statsmodels.formula.api as smf
+
+# Construct the formula specifying the referent (baseline) for each categorical variable.
+formula = (
+    "ratio ~ C(party, Treatment(reference='{}')) + "
+    "C(gender, Treatment(reference='{}')) + "
+    "C(race, Treatment(reference='{}')) + "
+    "C(platform, Treatment(reference='{}')) + "
+    "C(body, Treatment(reference='{}')) + "
+    "C(state, Treatment(reference='{}'))"
+).format(ref_party, ref_gender, ref_race, ref_platform, ref_body, ref_state)
+
+# Fit the OLS regression model.
+model = smf.ols(formula, data=df_reg).fit()
+
+# Display the summary of the regression model.
+print(model.summary())
+
+
+# %% Coefficient Plot: Visualize Regression Coefficients with Custom Reference Categories
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# Extract coefficients and their 95% confidence intervals from the fitted model.
+coef_df = pd.DataFrame({
+    "coef": model.params,
+    "lower": model.conf_int()[0],
+    "upper": model.conf_int()[1]
+})
+
+# Remove the intercept to focus on predictors.
+coef_df = coef_df.drop("Intercept", errors="ignore")
+# Sort coefficients for a cleaner display.
+coef_df = coef_df.sort_values(by="coef")
+
+plt.figure(figsize=(10, 6))
+plt.errorbar(coef_df["coef"], coef_df.index, 
+             xerr=[coef_df["coef"] - coef_df["lower"], coef_df["upper"] - coef_df["coef"]],
+             fmt='o', color='blue', ecolor='gray', capsize=4)
+plt.axvline(0, color='red', linestyle='--')
+plt.xlabel("Coefficient Estimate")
+plt.title("Regression Coefficients (with Custom Reference Categories)")
+plt.tight_layout()
+plt.show()
